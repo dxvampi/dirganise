@@ -21,6 +21,9 @@ A CLI tool written in Python that organises a messy folder by file type.
 
 ## Installation
 
+>[!WARNING]
+Not yet available, might not work.
+
 ```bash
 pip install dirganise
 ```
