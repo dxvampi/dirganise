@@ -7,6 +7,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      name: pypi
+      url: https://pypi.org/p/dirganise/
     permissions:
       id-token: write 
       contents: read
