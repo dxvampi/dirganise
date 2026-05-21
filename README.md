@@ -1,6 +1,6 @@
 # Dirganise
 
-> Organize any folder in seconds by file type.
+A CLI tool written in Python that organises a messy folder by file type.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
