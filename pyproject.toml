@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+ 
+[project]
+name = "dirganise"
+version = "0.1.0"
+description = "Organises a certain folder in a few seconds"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+ 
+[project.scripts]
+dirganise = "dirganise.main:main"
+ 

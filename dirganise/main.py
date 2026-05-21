@@ -1,0 +1,266 @@
+"""
+Dirganise - Organizes a certain folder in a few seconds per file type (no AI slop was used in the making of this project btw)
+"""
+import argparse, json, shutil
+from datetime import datetime
+from pathlib import Path
+
+# -----------
+# ---RULES---
+# -----------
+
+DEFAULT_RULES: dict[str, str] = {
+
+                         # -- MEDIA -- #
+                         # ----------- #
+    # Images
+    ".jpg": "Images", ".jpeg": "Images", ".png": "Images",
+    ".gif": "Images", ".webp": "Images", ".svg": "Images",
+    ".bmp": "Images", ".tiff": "Images", ".heic": "Images",
+
+    # Videos
+    ".mp4": "Videos", ".mov": "Videos", ".avi": "Videos",
+    ".mkv": "Videos", ".wmv": "Videos", ".flv": "Videos",
+
+    # Audio
+    ".mp3": "Audio", ".wav": "Audio", ".flac": "Audio",
+    ".aac": "Audio", ".ogg": "Audio", ".m4a": "Audio",
+
+                        # -- DOCUMENTS -- #
+                        # --------------- #
+    ".pdf": "Documents", ".docx": "Documents", ".doc": "Documents",
+    ".xlsx": "Documents", ".xls": "Documents", ".pptx": "Documents",
+    ".txt": "Documents", ".odt": "Documents", ".rtf": "Documents",
+
+                           # -- Code -- #
+                           # ---------- #
+    ".py": "Code", ".js": "Code", ".ts": "Code",
+    ".html": "Code", ".css": "Code", ".json": "Code",
+    ".csv": "Code", ".xml": "Code", ".sh": "Code",
+    ".bat": "Code", ".ps1": "Code",
+    
+                           # -- Others -- #
+                           # ------------ #
+    # Compressed
+    ".zip": "Compressed", ".rar": "Compressed", ".7z": "Compressed",
+    ".tar": "Compressed", ".gz": "Compressed", ".bz2": "Compressed",
+
+    # Installers
+    ".exe": "Installers", ".msi": "Installers", ".dmg": "Installers",
+    ".pkg": "Installers", ".deb": "Installers", ".rpm": "Installers",
+
+    # Fonts
+    ".ttf": "Fonts", ".otf": "Fonts", ".woff": "Fonts", ".woff2": "Fonts",
+
+}
+
+UNDO_FILE = ".dirganise_op.json"
+
+# ------------------ #
+# --- MAIN LOGIC --- #
+# ------------------ #
+
+def load_rules(custom_rules_path: Path) -> dict[str, str]:
+    """Return custom rules if provided, otherwise return default rules. Custom rules will override default ones if they exist.
+
+    Args:
+        custom_rules_path (Path): Path to the custom rules (JSON file).
+
+    Returns:
+        dict[str, str]: The rules that are gon be used.
+    """
+    rules = DEFAULT_RULES.copy()
+    if custom_rules_path and custom_rules_path.exists():
+        try:
+            with open(custom_rules_path, "r", encoding="utf-8") as f:
+                custom = json.load(f)
+            rules.update(custom)
+            print(f"Loaded custom rules successfully from {custom_rules_path}\n")
+        except Exception as e:
+            print(f"Error loading custom rules: {e} \nUsing default rules instead.\n")
+    return rules
+
+def collect_moves(folder: Path, rules: dict[str, str]) -> list[tuple[Path, Path]]:
+    """Collects the moves that need to be made for each file in the folder.
+
+    Args:
+        folder (Path): The folder to organize.
+        rules (dict[str, str]): The rules to use for organizing.
+
+    Returns:
+        list[tuple[Path, Path]]: A list of tuples containing the source and destination paths for each file to be moved.
+    """
+    moves = []
+    for file in sorted(folder.iterdir()):
+        if not file.is_file():
+            continue
+        if file.name.startswith("."):
+            continue
+        suffix = file.suffix.lower()
+        subfolder_name = rules.get(suffix, "Others")
+        destination_dir = folder / subfolder_name
+        destination_file = destination_dir / file.name
+        if destination_dir == folder:
+            continue
+        moves.append((file, destination_file))
+    return moves
+
+def print_preview(moves: list[tuple[Path, Path]]) -> None:
+    """Prints a preview of the moves that will be made.
+
+    Args:
+        moves (list[tuple[Path, Path]]): A list of tuples containing the source and destination paths for each file to be moved.
+    """
+
+    if not moves:
+        print("No files to organize. Make your own rules if you think the default ones are not right for your work.")
+        return
+    by_destination: dict[Path, list[Path]] = {}
+
+    for source, destination in moves:
+        by_destination.setdefault(destination.parent, []).append(source)
+
+    for folder_name, files in sorted(by_destination.items()):
+        print(f"\n{folder_name.name}/")
+        for file in files:
+            print(f"  {file.name}")
+    print(f"\nTotal files to move: {len(moves)}\n")
+
+# TODO: Add error handling
+# TODO: Add a counter for skipped files
+def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path(".")) -> None:
+    """Applies the moves to the file system.
+
+    Args:
+        moves (list[tuple[Path, Path]]): A list of tuples containing the source and destination paths for each file to be moved.
+    """
+    
+    if not moves:
+        return
+    
+    if dry_run:
+        print("[Preview] No changes have been made to the file system.\n")
+        print_preview(moves)
+        return
+    
+    undo_file = []
+    moved_files = 0
+    skipped_files = 0
+
+    for source, destination in moves:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            stem = destination.stem
+            suffix = destination.suffix
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            destination = destination.parent / f"{stem}_{timestamp}{suffix}"
+        shutil.move(str(source), str(destination))
+        undo_file.append({"from": str(destination), "to": str(source)})
+        print(f"Moved: {source.name} to {destination.parent.name}/")
+        moved_files += 1
+
+    log_path = folder / UNDO_FILE
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+
+    print(f"\n{moved_files} files organized successfully.")
+    print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.\n")
+
+
+def undo_moves(folder: Path) -> None:
+    """Undoes the last organization operation using the log file.
+
+    Args:
+        folder (Path): The folder to undo the organization in.
+    """
+    log_path = folder / UNDO_FILE
+    if not log_path.exists():
+        print("No undo log found. Cannot undo.")
+        return
+    
+    with open(log_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    moves = data.get("moves", [])
+    if not moves:
+        print("No moves found in the log. Cannot undo.")
+        return
+    
+    print(f"Undoing {len(moves)} move(s) from {data.get('timestamp', '?')}...\n")
+    restored = 0
+    for entry in reversed(moves):
+        src = Path(entry["from"])
+        dst = Path(entry["to"])
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dst))
+            print(f"{src.name}  >  Parent folder")
+            restored += 1
+        else:
+            print(f"Not found: {src.name}")
+
+    log_path.unlink()
+    print(f"\n{restored} file(s) restored.")
+
+# ----------- #
+# --- CLI --- #
+# ----------- #
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="dirganise",
+        description="Organizes files in a folder by classifying them by type.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+        examples:
+        dirganise ~/Downloads - organizes the Downloads folder
+        dirganise . --dry-run - preview without moving anything
+        dirganise . --undo - undoes the last dirganise
+        dirganise . --rules my_rules.json  use custom rules
+        """,
+    )
+    parser.add_argument("folder", type=Path, help="Folder to organize")
+    parser.add_argument(
+        "--dry-run", "-n",
+        action="store_true",
+        help="Shows what would happen without moving any files",
+    )
+    parser.add_argument(
+        "--undo",
+        action="store_true",
+        help="Reverts the last organize operation in this folder",
+    )
+    parser.add_argument(
+        "--rules",
+        type=Path,
+        metavar="FILE.json",
+        help="JSON with custom rules",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    folder: Path = args.folder.expanduser().resolve()
+
+    if not folder.exists():
+        parser.error(f"Folder does not exist: {folder}")
+    if not folder.is_dir():
+        parser.error(f"Not a folder: {folder}")
+
+    print(f"\n dirganise  >  {folder}\n")
+
+    if args.undo:
+        undo_moves(folder)
+        return
+
+    rules = load_rules(args.rules)
+    moves = collect_moves(folder, rules)
+    organize(moves, dry_run=args.dry_run, folder=folder)
+    print()
+
+
+if __name__ == "__main__":
+    main()
