@@ -5,10 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dirganise"
 version = "0.1.0"
+authors = [
+    { name = "Ilai", email = "dxvampi@gmail.com" }
+]
 description = "Organises a certain folder in a few seconds"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/dxvampi/dirganise"
+"Source Code" = "https://github.com/dxvampi/dirganise"
  
 [project.scripts]
 dirganise = "dirganise.main:main"
