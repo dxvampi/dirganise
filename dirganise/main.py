@@ -2,8 +2,15 @@
 Dirganise - Organizes a certain folder in a few seconds per file type (no AI slop was used in the making of this project btw)
 """
 import argparse, json, shutil
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+
+@dataclass
+class FailedFile:
+    name: str
+    reason: str
 
 # -----------
 # ---RULES---
@@ -126,26 +133,44 @@ def print_preview(moves: list[tuple[Path, Path]]) -> None:
             print(f"  {file.name}")
     print(f"\nTotal files to move: {len(moves)}\n")
 
-# TODO: Add error handling
-# TODO: Add a counter for skipped files
+def _print_failed_summary(failed: list[FailedFile]) -> None:
+    """Prints a grouped summary of files that could not be moved.
+
+    Args:
+        failed (list[FailedFile]): Files that failed along with their reasons.
+    """
+    # Group by reason
+    by_reason: dict[str, list[str]] = {}
+    for entry in failed:
+        by_reason.setdefault(entry.reason, []).append(entry.name)
+
+    total = len(failed)
+    print(f"\n{total} file{'s' if total != 1 else ''} failed:\n")
+    for reason, names in by_reason.items():
+        for name in names:
+            print(f"  * {name} -> {reason}")
+
+
 def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path(".")) -> None:
     """Applies the moves to the file system.
 
     Args:
         moves (list[tuple[Path, Path]]): A list of tuples containing the source and destination paths for each file to be moved.
+        dry_run (bool): If True, only previews the moves without applying them.
+        folder (Path): The root folder being organized (used for the undo log).
     """
-    
+
     if not moves:
         return
-    
+
     if dry_run:
         print("[Preview] No changes have been made to the file system.\n")
         print_preview(moves)
         return
-    
+
     undo_file = []
     moved_files = 0
-    skipped_files = 0
+    failed: list[FailedFile] = []
 
     for source, destination in moves:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -154,17 +179,29 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
             suffix = destination.suffix
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             destination = destination.parent / f"{stem}_{timestamp}{suffix}"
-        shutil.move(str(source), str(destination))
+        try:
+            shutil.move(str(source), str(destination))
+        except PermissionError:
+            print(f"Skipped: {source.name} (file is in use)")
+            failed.append(FailedFile(name=source.name, reason="File is in use"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {source.name} ({e.strerror})")
+            failed.append(FailedFile(name=source.name, reason=e.strerror or "Unknown error"))
+            continue
         undo_file.append({"from": str(destination), "to": str(source)})
         print(f"Moved: {source.name} to {destination.parent.name}/")
         moved_files += 1
 
-    log_path = folder / UNDO_FILE
-    with open(log_path, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+    if undo_file:
+        log_path = folder / UNDO_FILE
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+        print(f"\n{moved_files} files organized successfully.")
+        print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
 
-    print(f"\n{moved_files} files organized successfully.")
-    print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.\n")
+    if failed:
+        _print_failed_summary(failed)
 
 
 def undo_moves(folder: Path) -> None:
@@ -208,14 +245,14 @@ def undo_moves(folder: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="dirganise",
+        prog="cleandir",
         description="Organizes files in a folder by classifying them by type.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         examples:
-        dirganise ~/Downloads - organizes the Downloads folder
-        dirganise . --dry-run - preview without moving anything
-        dirganise . --undo - undoes the last dirganise
+        dirganise ~/Downloads              organizes the Downloads folder
+        dirganise . --dry-run              preview without moving anything
+        dirganise . --undo                 undoes the last dirganise
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
@@ -228,13 +265,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--undo",
         action="store_true",
-        help="Reverts the last organize operation in this folder",
+        help="Reverts the last cleandir in this folder",
     )
     parser.add_argument(
         "--rules",
         type=Path,
         metavar="FILE.json",
-        help="JSON with custom rules",
+        help="JSON with custom rules {'.ext': 'Folder'}",
     )
     return parser
 
