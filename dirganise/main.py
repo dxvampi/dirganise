@@ -2,8 +2,15 @@
 Dirganise - Organizes a certain folder in a few seconds per file type (no AI slop was used in the making of this project btw)
 """
 import argparse, json, shutil
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+
+@dataclass
+class FailedFile:
+    name: str
+    reason: str
 
 # -----------
 # ---RULES---
@@ -46,8 +53,8 @@ DEFAULT_RULES: dict[str, str] = {
     ".tar": "Compressed", ".gz": "Compressed", ".bz2": "Compressed",
 
     # Installers
-    ".exe": "Installers", ".msi": "Installers", ".dmg": "Installers",
-    ".pkg": "Installers", ".deb": "Installers", ".rpm": "Installers",
+    ".exe": "Executables/Installers", ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
+    ".pkg": "Executables/Installers", ".deb": "Executables/Installers", ".rpm": "Executables/Installers",
 
     # Fonts
     ".ttf": "Fonts", ".otf": "Fonts", ".woff": "Fonts", ".woff2": "Fonts",
@@ -126,45 +133,99 @@ def print_preview(moves: list[tuple[Path, Path]]) -> None:
             print(f"  {file.name}")
     print(f"\nTotal files to move: {len(moves)}\n")
 
-# TODO: Add error handling
-# TODO: Add a counter for skipped files
+def _print_failed_summary(failed: list[FailedFile]) -> None:
+    """Prints a grouped summary of files that could not be moved.
+
+    Args:
+        failed (list[FailedFile]): Files that failed along with their reasons.
+    """
+    # Group by reason
+    by_reason: dict[str, list[str]] = {}
+    for entry in failed:
+        by_reason.setdefault(entry.reason, []).append(entry.name)
+
+    total = len(failed)
+    print(f"\n{total} file{'s' if total != 1 else ''} failed:\n")
+    for reason, names in by_reason.items():
+        for name in names:
+            print(f"  * {name} -> {reason}")
+
+
 def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path(".")) -> None:
     """Applies the moves to the file system.
 
     Args:
         moves (list[tuple[Path, Path]]): A list of tuples containing the source and destination paths for each file to be moved.
+        dry_run (bool): If True, only previews the moves without applying them.
+        folder (Path): The root folder being organized (used for the undo log).
     """
-    
+
     if not moves:
         return
-    
+
     if dry_run:
         print("[Preview] No changes have been made to the file system.\n")
         print_preview(moves)
         return
-    
+
     undo_file = []
     moved_files = 0
-    skipped_files = 0
+    failed: list[FailedFile] = []
 
     for source, destination in moves:
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        # --- Create destination directory ---
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            print(f"Skipped: {source.name} (no permission to create '{destination.parent.name}/')")
+            failed.append(FailedFile(name=source.name, reason=f"No permission to create '{destination.parent.name}/'"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {source.name} (could not create destination folder: {e.strerror})")
+            failed.append(FailedFile(name=source.name, reason=f"Could not create destination folder: {e.strerror or 'Unknown error'}"))
+            continue
+
+        # --- Resolve name conflict ---
         if destination.exists():
             stem = destination.stem
             suffix = destination.suffix
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             destination = destination.parent / f"{stem}_{timestamp}{suffix}"
-        shutil.move(str(source), str(destination))
+
+        # --- Move the file ---
+        try:
+            shutil.move(str(source), str(destination))
+        except PermissionError:
+            print(f"Skipped: {source.name} (file is in use)")
+            failed.append(FailedFile(name=source.name, reason="File is in use"))
+            continue
+        except shutil.Error as e:
+            print(f"Skipped: {source.name} (move error: {e})")
+            failed.append(FailedFile(name=source.name, reason=f"Move error: {e}"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {source.name} ({e.strerror})")
+            failed.append(FailedFile(name=source.name, reason=e.strerror or "Unknown error"))
+            continue
+
         undo_file.append({"from": str(destination), "to": str(source)})
         print(f"Moved: {source.name} to {destination.parent.name}/")
         moved_files += 1
 
-    log_path = folder / UNDO_FILE
-    with open(log_path, "w", encoding="utf-8") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+    # --- Write undo log ---
+    if undo_file:
+        log_path = folder / UNDO_FILE
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+            print(f"\n{moved_files} files organized successfully.")
+            print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
+        except OSError as e:
+            print(f"\n{moved_files} files organized successfully.")
+            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operation.")
 
-    print(f"\n{moved_files} files organized successfully.")
-    print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.\n")
+    if failed:
+        _print_failed_summary(failed)
 
 
 def undo_moves(folder: Path) -> None:
@@ -177,30 +238,77 @@ def undo_moves(folder: Path) -> None:
     if not log_path.exists():
         print("No undo log found. Cannot undo.")
         return
-    
-    with open(log_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
+
+    # --- Read undo log ---
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        print("Undo log is corrupted and cannot be read.")
+        return
+    except OSError as e:
+        print(f"Could not read undo log: {e.strerror}")
+        return
+
     moves = data.get("moves", [])
     if not moves:
         print("No moves found in the log. Cannot undo.")
         return
-    
+
     print(f"Undoing {len(moves)} move(s) from {data.get('timestamp', '?')}...\n")
     restored = 0
+    failed: list[FailedFile] = []
+
     for entry in reversed(moves):
         src = Path(entry["from"])
         dst = Path(entry["to"])
-        if src.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
-            print(f"{src.name}  >  Parent folder")
-            restored += 1
-        else:
-            print(f"Not found: {src.name}")
 
-    log_path.unlink()
+        if not src.exists():
+            print(f"Not found: {src.name}")
+            failed.append(FailedFile(name=src.name, reason="File not found"))
+            continue
+
+        # --- Re-create original directory if needed ---
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            print(f"Skipped: {src.name} (no permission to restore to '{dst.parent.name}/')")
+            failed.append(FailedFile(name=src.name, reason=f"No permission to restore to '{dst.parent.name}/'"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {src.name} (could not recreate folder: {e.strerror})")
+            failed.append(FailedFile(name=src.name, reason=f"Could not recreate folder: {e.strerror or 'Unknown error'}"))
+            continue
+
+        # --- Restore the file ---
+        try:
+            shutil.move(str(src), str(dst))
+        except PermissionError:
+            print(f"Skipped: {src.name} (file is in use)")
+            failed.append(FailedFile(name=src.name, reason="File is in use"))
+            continue
+        except shutil.Error as e:
+            print(f"Skipped: {src.name} (move error: {e})")
+            failed.append(FailedFile(name=src.name, reason=f"Move error: {e}"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {src.name} ({e.strerror})")
+            failed.append(FailedFile(name=src.name, reason=e.strerror or "Unknown error"))
+            continue
+
+        print(f"{src.name}  >  Parent folder")
+        restored += 1
+
+    # --- Delete undo log ---
+    try:
+        log_path.unlink()
+    except OSError as e:
+        print(f"Warning: Could not delete undo log ({e.strerror}). Remove it manually: {log_path}")
+
     print(f"\n{restored} file(s) restored.")
+
+    if failed:
+        _print_failed_summary(failed)
 
 # ----------- #
 # --- CLI --- #
@@ -208,14 +316,14 @@ def undo_moves(folder: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="dirganise",
+        prog="cleandir",
         description="Organizes files in a folder by classifying them by type.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         examples:
-        dirganise ~/Downloads - organizes the Downloads folder
-        dirganise . --dry-run - preview without moving anything
-        dirganise . --undo - undoes the last dirganise
+        dirganise ~/Downloads              organizes the Downloads folder
+        dirganise . --dry-run              preview without moving anything
+        dirganise . --undo                 undoes the last dirganise
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
@@ -228,13 +336,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--undo",
         action="store_true",
-        help="Reverts the last organize operation in this folder",
+        help="Reverts the last cleandir in this folder",
     )
     parser.add_argument(
         "--rules",
         type=Path,
         metavar="FILE.json",
-        help="JSON with custom rules",
+        help="JSON with custom rules {'.ext': 'Folder'}",
     )
     return parser
 
