@@ -53,8 +53,8 @@ DEFAULT_RULES: dict[str, str] = {
     ".tar": "Compressed", ".gz": "Compressed", ".bz2": "Compressed",
 
     # Installers
-    ".exe": "Installers", ".msi": "Installers", ".dmg": "Installers",
-    ".pkg": "Installers", ".deb": "Installers", ".rpm": "Installers",
+    ".exe": "Executables/Installers", ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
+    ".pkg": "Executables/Installers", ".deb": "Executables/Installers", ".rpm": "Executables/Installers",
 
     # Fonts
     ".ttf": "Fonts", ".otf": "Fonts", ".woff": "Fonts", ".woff2": "Fonts",
@@ -173,32 +173,56 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
     failed: list[FailedFile] = []
 
     for source, destination in moves:
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        # --- Create destination directory ---
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            print(f"Skipped: {source.name} (no permission to create '{destination.parent.name}/')")
+            failed.append(FailedFile(name=source.name, reason=f"No permission to create '{destination.parent.name}/'"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {source.name} (could not create destination folder: {e.strerror})")
+            failed.append(FailedFile(name=source.name, reason=f"Could not create destination folder: {e.strerror or 'Unknown error'}"))
+            continue
+
+        # --- Resolve name conflict ---
         if destination.exists():
             stem = destination.stem
             suffix = destination.suffix
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             destination = destination.parent / f"{stem}_{timestamp}{suffix}"
+
+        # --- Move the file ---
         try:
             shutil.move(str(source), str(destination))
         except PermissionError:
             print(f"Skipped: {source.name} (file is in use)")
             failed.append(FailedFile(name=source.name, reason="File is in use"))
             continue
+        except shutil.Error as e:
+            print(f"Skipped: {source.name} (move error: {e})")
+            failed.append(FailedFile(name=source.name, reason=f"Move error: {e}"))
+            continue
         except OSError as e:
             print(f"Skipped: {source.name} ({e.strerror})")
             failed.append(FailedFile(name=source.name, reason=e.strerror or "Unknown error"))
             continue
+
         undo_file.append({"from": str(destination), "to": str(source)})
         print(f"Moved: {source.name} to {destination.parent.name}/")
         moved_files += 1
 
+    # --- Write undo log ---
     if undo_file:
         log_path = folder / UNDO_FILE
-        with open(log_path, "w", encoding="utf-8") as f:
-            json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
-        print(f"\n{moved_files} files organized successfully.")
-        print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
+            print(f"\n{moved_files} files organized successfully.")
+            print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
+        except OSError as e:
+            print(f"\n{moved_files} files organized successfully.")
+            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operation.")
 
     if failed:
         _print_failed_summary(failed)
@@ -214,30 +238,77 @@ def undo_moves(folder: Path) -> None:
     if not log_path.exists():
         print("No undo log found. Cannot undo.")
         return
-    
-    with open(log_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
+
+    # --- Read undo log ---
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        print("Undo log is corrupted and cannot be read.")
+        return
+    except OSError as e:
+        print(f"Could not read undo log: {e.strerror}")
+        return
+
     moves = data.get("moves", [])
     if not moves:
         print("No moves found in the log. Cannot undo.")
         return
-    
+
     print(f"Undoing {len(moves)} move(s) from {data.get('timestamp', '?')}...\n")
     restored = 0
+    failed: list[FailedFile] = []
+
     for entry in reversed(moves):
         src = Path(entry["from"])
         dst = Path(entry["to"])
-        if src.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
-            print(f"{src.name}  >  Parent folder")
-            restored += 1
-        else:
-            print(f"Not found: {src.name}")
 
-    log_path.unlink()
+        if not src.exists():
+            print(f"Not found: {src.name}")
+            failed.append(FailedFile(name=src.name, reason="File not found"))
+            continue
+
+        # --- Re-create original directory if needed ---
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            print(f"Skipped: {src.name} (no permission to restore to '{dst.parent.name}/')")
+            failed.append(FailedFile(name=src.name, reason=f"No permission to restore to '{dst.parent.name}/'"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {src.name} (could not recreate folder: {e.strerror})")
+            failed.append(FailedFile(name=src.name, reason=f"Could not recreate folder: {e.strerror or 'Unknown error'}"))
+            continue
+
+        # --- Restore the file ---
+        try:
+            shutil.move(str(src), str(dst))
+        except PermissionError:
+            print(f"Skipped: {src.name} (file is in use)")
+            failed.append(FailedFile(name=src.name, reason="File is in use"))
+            continue
+        except shutil.Error as e:
+            print(f"Skipped: {src.name} (move error: {e})")
+            failed.append(FailedFile(name=src.name, reason=f"Move error: {e}"))
+            continue
+        except OSError as e:
+            print(f"Skipped: {src.name} ({e.strerror})")
+            failed.append(FailedFile(name=src.name, reason=e.strerror or "Unknown error"))
+            continue
+
+        print(f"{src.name}  >  Parent folder")
+        restored += 1
+
+    # --- Delete undo log ---
+    try:
+        log_path.unlink()
+    except OSError as e:
+        print(f"Warning: Could not delete undo log ({e.strerror}). Remove it manually: {log_path}")
+
     print(f"\n{restored} file(s) restored.")
+
+    if failed:
+        _print_failed_summary(failed)
 
 # ----------- #
 # --- CLI --- #
