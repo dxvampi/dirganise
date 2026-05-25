@@ -2,7 +2,7 @@
 Dirganise - Organizes a certain folder in a few seconds per file type (no AI slop was used in the making of this project btw)
 """
 import argparse, json, shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -52,8 +52,9 @@ DEFAULT_RULES: dict[str, str] = {
     ".zip": "Compressed", ".rar": "Compressed", ".7z": "Compressed",
     ".tar": "Compressed", ".gz": "Compressed", ".bz2": "Compressed",
 
-    # Installers
-    ".exe": "Executables/Installers", ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
+    # Executables
+    ".exe": "Executables/Programs",
+    ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
     ".pkg": "Executables/Installers", ".deb": "Executables/Installers", ".rpm": "Executables/Installers",
 
     # Fonts
@@ -61,7 +62,7 @@ DEFAULT_RULES: dict[str, str] = {
 
 }
 
-UNDO_FILE = ".dirganise_op.json"
+UNDO_FILE: str = ".dirganise_op.json"
 
 # ------------------ #
 # --- MAIN LOGIC --- #
@@ -74,7 +75,7 @@ def load_rules(custom_rules_path: Path) -> dict[str, str]:
         custom_rules_path (Path): Path to the custom rules (JSON file).
 
     Returns:
-        dict[str, str]: The rules that are gon be used.
+        dict[str, str]: The rules that are gonna be used.
     """
     rules = DEFAULT_RULES.copy()
     if custom_rules_path and custom_rules_path.exists():
@@ -150,7 +151,6 @@ def _print_failed_summary(failed: list[FailedFile]) -> None:
         for name in names:
             print(f"  * {name} -> {reason}")
 
-
 def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path(".")) -> None:
     """Applies the moves to the file system.
 
@@ -222,14 +222,13 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
             print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
         except OSError as e:
             print(f"\n{moved_files} files organized successfully.")
-            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operation.")
+            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operations.")
 
     if failed:
         _print_failed_summary(failed)
 
-
 def undo_moves(folder: Path) -> None:
-    """Undoes the last organization operation using the log file.
+    """Undoes the last organization operations using the log file.
 
     Args:
         folder (Path): The folder to undo the organization in.
@@ -316,7 +315,7 @@ def undo_moves(folder: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="cleandir",
+        prog="dirganise",
         description="Organizes files in a folder by classifying them by type.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
@@ -327,7 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
-    parser.add_argument("folder", type=Path, help="Folder to organize")
+    parser.add_argument("folder", type=Path, nargs="?", default=Path("."), help="Folder to organize")
     parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
@@ -336,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--undo",
         action="store_true",
-        help="Reverts the last cleandir in this folder",
+        help="Reverts the last dirganise in this folder",
     )
     parser.add_argument(
         "--rules",
@@ -345,7 +344,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON with custom rules {'.ext': 'Folder'}",
     )
     return parser
-
 
 def main() -> None:
     parser = build_parser()
@@ -368,7 +366,6 @@ def main() -> None:
     moves = collect_moves(folder, rules)
     organize(moves, dry_run=args.dry_run, folder=folder)
     print()
-
 
 if __name__ == "__main__":
     main()
