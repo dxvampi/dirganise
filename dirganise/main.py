@@ -2,7 +2,7 @@
 Dirganise - Organizes a certain folder in a few seconds per file type (no AI slop was used in the making of this project btw)
 """
 import argparse, json, shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -52,8 +52,9 @@ DEFAULT_RULES: dict[str, str] = {
     ".zip": "Compressed", ".rar": "Compressed", ".7z": "Compressed",
     ".tar": "Compressed", ".gz": "Compressed", ".bz2": "Compressed",
 
-    # Installers
-    ".exe": "Executables/Installers", ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
+    # Executables
+    ".exe": "Executables/Programs",
+    ".msi": "Executables/Installers", ".dmg": "Executables/Installers",
     ".pkg": "Executables/Installers", ".deb": "Executables/Installers", ".rpm": "Executables/Installers",
 
     # Fonts
@@ -74,7 +75,7 @@ def load_rules(custom_rules_path: Path) -> dict[str, str]:
         custom_rules_path (Path): Path to the custom rules (JSON file).
 
     Returns:
-        dict[str, str]: The rules that are gon be used.
+        dict[str, str]: The rules that are gonna be used.
     """
     rules = DEFAULT_RULES.copy()
     if custom_rules_path and custom_rules_path.exists():
@@ -221,13 +222,13 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
             print(f"Log saved to {log_path}\nYou can use this log to undo the changes if needed.")
         except OSError as e:
             print(f"\n{moved_files} files organized successfully.")
-            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operation.")
+            print(f"Warning: Could not save undo log ({e.strerror}). You will not be able to undo this operations.")
 
     if failed:
         _print_failed_summary(failed)
 
 def undo_moves(folder: Path) -> None:
-    """Undoes the last organization operation using the log file.
+    """Undoes the last organization operations using the log file.
 
     Args:
         folder (Path): The folder to undo the organization in.
@@ -325,7 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
-    parser.add_argument("folder", type=Path, default=".", help="Folder to organize")
+    parser.add_argument("folder", type=Path, nargs="?", default=Path("."), help="Folder to organize")
     parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
