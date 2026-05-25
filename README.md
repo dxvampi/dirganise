@@ -21,8 +21,8 @@ A CLI tool written in Python that organizes a messy folder by file type.
 
 ## Installation
 
-> [!TIP] Compatibility
-> This program can run in every platform that supports Python 3.10+
+> [!TIP]
+> **Compatibility:** This program can run in every platform that supports Python 3.10+
 
 ```bash
 pip install dirganise
