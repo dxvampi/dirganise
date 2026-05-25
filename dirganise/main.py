@@ -314,7 +314,7 @@ def undo_moves(folder: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="cleandir",
+        prog="dirganise",
         description="Organizes files in a folder by classifying them by type.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
@@ -325,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
-    parser.add_argument("folder", type=Path, help="Folder to organize")
+    parser.add_argument("folder", type=Path, default=".", help="Folder to organize")
     parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
@@ -334,7 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--undo",
         action="store_true",
-        help="Reverts the last cleandir in this folder",
+        help="Reverts the last dirganise in this folder",
     )
     parser.add_argument(
         "--rules",
