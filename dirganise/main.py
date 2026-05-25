@@ -345,7 +345,7 @@ def build_parser(__version__=None) -> argparse.ArgumentParser:
         help="JSON with custom rules {'.ext': 'Folder'}",
     )
     parser.add_argument(
-        "--v", "--version",
+        "--version", "-v",
         action="version",
         version=f"%(prog)s {__version__}"
     )

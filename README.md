@@ -61,6 +61,7 @@ dirganise --rules custom_rules.json
 | `--dry-run`    | `-n`  | Preview changes without modifying the filesystem          |
 | `--undo`       |       | Revert the last `dirganise` operation in this folder      |
 | `--rules FILE` |       | Path to a JSON file with custom extension-to-folder rules |
+| `--version`    | `-v`  | Prints the version of dirganise being used                |
 
 ---
 
