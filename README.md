@@ -1,10 +1,10 @@
 # Dirganise
 
-A CLI tool written in Python that organises a messy folder by file type.
+A CLI tool written in Python that organizes a messy folder by file type.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.1-green)]()
+[![Version](https://img.shields.io/badge/version-1.0.2-green)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 
 ---
@@ -20,6 +20,9 @@ A CLI tool written in Python that organises a messy folder by file type.
 ---
 
 ## Installation
+
+> [!TIP]
+> **Compatibility:** This program can run in every platform that supports Python 3.10+
 
 ```bash
 pip install dirganise
@@ -42,38 +45,39 @@ pip install -e .
 dirganise /path/to/folder
 
 # Preview changes without moving anything
-dirganise . --dry-run
+dirganise --dry-run
 
 # Undo the last organization
-dirganise . --undo
+dirganise --undo
 
 # Use custom rules from a JSON file
-dirganise . --rules custom_rules.json
+dirganise --rules custom_rules.json
 ```
 
 ### Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--dry-run` | `-n` | Preview changes without modifying the filesystem |
-| `--undo` | | Revert the last `dirganise` operation in this folder |
-| `--rules FILE` | | Path to a JSON file with custom extension-to-folder rules |
+| Flag           | Short | Description                                               |
+|----------------|-------|-----------------------------------------------------------|
+| `--dry-run`    | `-n`  | Preview changes without modifying the filesystem          |
+| `--undo`       |       | Revert the last `dirganise` operation in this folder      |
+| `--rules FILE` |       | Path to a JSON file with custom extension-to-folder rules |
+| `--version`    | `-v`  | Prints the version of dirganise being used                |
 
 ---
 
 ## Default Organization Rules
 
-| Category | Extensions |
-|----------|------------|
-| **Images** | `.jpg` `.jpeg` `.png` `.gif` `.webp` `.svg` `.bmp` `.tiff` `.heic` |
-| **Videos** | `.mp4` `.mov` `.avi` `.mkv` `.wmv` `.flv` |
-| **Audio** | `.mp3` `.wav` `.flac` `.aac` `.ogg` `.m4a` |
-| **Documents** | `.pdf` `.docx` `.xlsx` `.pptx` `.txt` `.odt` `.rtf` |
-| **Code** | `.py` `.js` `.ts` `.html` `.css` `.json` `.csv` `.xml` `.sh` `.bat` `.ps1` |
-| **Compressed** | `.zip` `.rar` `.7z` `.tar` `.gz` `.bz2` |
-| **Installers** | `.exe` `.msi` `.dmg` `.pkg` `.deb` `.rpm` |
-| **Fonts** | `.ttf` `.otf` `.woff` `.woff2` |
-| **Others** | Everything else |
+| Category        | Extensions                                                                 |
+|-----------------|----------------------------------------------------------------------------|
+| **Images**      | `.jpg` `.jpeg` `.png` `.gif` `.webp` `.svg` `.bmp` `.tiff` `.heic`         |
+| **Videos**      | `.mp4` `.mov` `.avi` `.mkv` `.wmv` `.flv`                                  |
+| **Audio**       | `.mp3` `.wav` `.flac` `.aac` `.ogg` `.m4a`                                 |
+| **Documents**   | `.pdf` `.docx` `.xlsx` `.pptx` `.txt` `.odt` `.rtf`                        |
+| **Code**        | `.py` `.js` `.ts` `.html` `.css` `.json` `.csv` `.xml` `.sh` `.bat` `.ps1` |
+| **Compressed**  | `.zip` `.rar` `.7z` `.tar` `.gz` `.bz2`                                    |
+| **Executables** | `.exe` `.msi` `.dmg` `.pkg` `.deb` `.rpm`                                  |
+| **Fonts**       | `.ttf` `.otf` `.woff` `.woff2`                                             |
+| **Others**      | Everything else                                                            |
 
 ---
 
@@ -143,33 +147,9 @@ cd dirganise
 pip install -e .
 ```
 
-Contributions, issues, and feature requests are highly welcome. Feel free to open a issue or submit a pull request.
+Contributions, issues, and feature requests are highly welcome. Feel free to open an issue or submit a pull request.
 
 ---
-
-## Compatibility
-
-`dirganise` relies only on the Python standard library and has no external dependencies, so it runs on any platform that supports Python 3.10+.
-
-| OS | Minimum version |
-|----|-----------------|
-| **Windows** | 8.1 |
-| **macOS** | 10.9 (Mavericks) |
-| **Linux** | Any modern distribution |
-| **FreeBSD** | 12.0 |
-| **OpenBSD** | 7.0 |
-| **NetBSD** | 9.0 |
-| **DragonFlyBSD** | 6.0 |
-| **Solaris / illumos** | Solaris 11.4 / OpenIndiana 2021+ |
-| **AIX** | 7.2 |
-| **Android** | Via Termux (Python 3.10+) |
-| **iOS / iPadOS** | Via Pythonista or similar (limited) |
-
-> [!NOTE]
-> It is not recommended for its use on Android or iOS for stability reasons.
-
----
-
 ## License
 
 [MIT](LICENSE) © 2026
