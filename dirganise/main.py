@@ -61,7 +61,7 @@ DEFAULT_RULES: dict[str, str] = {
 
 }
 
-UNDO_FILE = ".dirganise_op.json"
+UNDO_FILE: str = ".dirganise_op.json"
 
 # ------------------ #
 # --- MAIN LOGIC --- #
@@ -150,7 +150,6 @@ def _print_failed_summary(failed: list[FailedFile]) -> None:
         for name in names:
             print(f"  * {name} -> {reason}")
 
-
 def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path(".")) -> None:
     """Applies the moves to the file system.
 
@@ -226,7 +225,6 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
 
     if failed:
         _print_failed_summary(failed)
-
 
 def undo_moves(folder: Path) -> None:
     """Undoes the last organization operation using the log file.
@@ -346,7 +344,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     return parser
 
-
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -368,7 +365,6 @@ def main() -> None:
     moves = collect_moves(folder, rules)
     organize(moves, dry_run=args.dry_run, folder=folder)
     print()
-
 
 if __name__ == "__main__":
     main()
