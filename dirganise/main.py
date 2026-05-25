@@ -5,6 +5,7 @@ import argparse, json, shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from importlib.metadata import version, PackageNotFoundError
 
 
 @dataclass
@@ -313,7 +314,7 @@ def undo_moves(folder: Path) -> None:
 # --- CLI --- #
 # ----------- #
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(__version__=None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dirganise",
         description="Organizes files in a folder by classifying them by type.",
@@ -343,10 +344,19 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE.json",
         help="JSON with custom rules {'.ext': 'Folder'}",
     )
+    parser.add_argument(
+        "--v", "--version",
+        action="version",
+        version=f"%(prog)s {__version__}"
+    )
     return parser
 
 def main() -> None:
-    parser = build_parser()
+    try:
+        __version__ = version("dirganise")
+    except PackageNotFoundError:
+        __version__ = "unknown"
+    parser = build_parser(__version__)
     args = parser.parse_args()
 
     folder: Path = args.folder.expanduser().resolve()
