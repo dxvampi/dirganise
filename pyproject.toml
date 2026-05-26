@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
  
 [project]
 name = "dirganise"
-version = "1.1.0b2"
+version = "1.1.0rc1"
 dependencies = [
     "colorlog>=0.6.0"
 ]

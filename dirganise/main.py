@@ -157,7 +157,7 @@ def _print_failed_summary(failed: list[FailedFile], logger: Logger) -> None:
         for name in names:
             logger.warning(f"  * {name} -> {reason}")
 
-def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path("."), logger: Logger = None) -> None:
+def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path = Path("Code"), logger: Logger = None) -> None:
     """Applies the moves to the file system.
 
     Args:
@@ -234,13 +234,9 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
     if failed:
         _print_failed_summary(failed, logger=logger)
 
-def undo_moves(folder: Path, logger: Logger) -> None:
-    """Undoes the last organization operations using the log file.
 
-    Args:
-        logger: The logger that is going to be used
-        folder (Path): The folder to undo the organization in.
-    """
+def undo_moves(folder: Path, logger: Logger) -> None:
+    """Undoes the last organization operations using the log file."""
     log_path = folder / UNDO_FILE
     if not log_path.exists():
         logger.warning(f"Could not find undo log: {log_path}")
@@ -266,9 +262,15 @@ def undo_moves(folder: Path, logger: Logger) -> None:
     restored = 0
     failed: list[FailedFile] = []
 
+    # Aquí guardaremos todos los paths origen para luego limpiar las carpetas
+    source_paths: set[Path] = set()
+
     for entry in reversed(moves):
         src = Path(entry["from"])
         dst = Path(entry["to"])
+
+        # Añadimos la ruta a nuestro set de seguimiento
+        source_paths.add(src)
 
         if not src.exists():
             logger.warning(f"Not found: {src.name}")
@@ -284,7 +286,8 @@ def undo_moves(folder: Path, logger: Logger) -> None:
             continue
         except OSError as e:
             logger.error(f"Skipped: {src.name} (could not recreate folder: {e.strerror})")
-            failed.append(FailedFile(name=src.name, reason=f"Could not recreate folder: {e.strerror or 'Unknown error'}"))
+            failed.append(
+                FailedFile(name=src.name, reason=f"Could not recreate folder: {e.strerror or 'Unknown error'}"))
             continue
 
         # --- Restore the file ---
@@ -303,22 +306,32 @@ def undo_moves(folder: Path, logger: Logger) -> None:
             failed.append(FailedFile(name=src.name, reason=e.strerror or "Unknown error"))
             continue
 
-
         logger.info(f"{src.name}  >  Parent folder")
         restored += 1
 
-        # --- Delete folders ---
-        folders_to_check = {Path(entry["from"]).parent for entry in moves}
-        for folder_path in sorted(folders_to_check, key=lambda p: len(p.parts), reverse=True):
-            try:
-                if folder_path.parent == folder:
-                    if folder_path.exists() and not any(folder_path.iterdir()):
-                        folder_path.rmdir()
-                        logger.info(f"Deleted empty folder: {folder_path.name}/")
-                else:
-                    logger.debug(f"Skipped folder deletion (not a direct child of root): {folder_path}")
-            except OSError as e:
-                logger.warning(f"Could not delete empty folder: {folder_path.name}/")
+    # --- LIMPIEZA TOTAL DE CARPETAS ANIDADAS ---
+    root_folder = folder.resolve()
+    folders_to_check: set[Path] = set()
+
+    # 1. Recolectamos toda la jerarquía de carpetas implicadas
+    for src in source_paths:
+        current_dir = src.resolve().parent
+        # Vamos subiendo de nivel mientras estemos dentro de root_folder, sin incluir root_folder
+        while current_dir != root_folder and current_dir.is_relative_to(root_folder):
+            folders_to_check.add(current_dir)
+            current_dir = current_dir.parent
+
+    # 2. Ordenamos de más profunda (mayor número de partes) a más superficial
+    for dir_path in sorted(folders_to_check, key=lambda p: len(p.parts), reverse=True):
+        try:
+            # Comprobamos que existe, es un directorio y está vacío
+            if dir_path.exists() and dir_path.is_dir() and not any(dir_path.iterdir()):
+                dir_path.rmdir()
+                # Lo mostramos bonito en el log relativo a la carpeta raíz
+                relative_name = dir_path.relative_to(root_folder)
+                logger.info(f"Deleted empty folder: {relative_name}/")
+        except OSError as e:
+            logger.warning(f"Could not delete empty folder {dir_path.name}/: {e.strerror}")
 
     # --- Delete undo log ---
     try:
@@ -348,7 +361,7 @@ def build_parser(__version__=None) -> argparse.ArgumentParser:
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
-    parser.add_argument("folder", type=Path, nargs="?", default=Path("."), help="Folder to organize")
+    parser.add_argument("folder", type=Path, nargs="?", default=Path("Code"), help="Folder to organize")
     parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
