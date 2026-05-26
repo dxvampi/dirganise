@@ -8,6 +8,7 @@ from logging import Logger
 from pathlib import Path
 from importlib.metadata import version, PackageNotFoundError
 from dirganise.utilities.logutils import config_logs
+from dirganise.utilities.logutils import get_undo_log_path
 
 
 @dataclass
@@ -221,7 +222,7 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
 
     # --- Write undo log ---
     if undo_file:
-        log_path = folder / UNDO_FILE
+        log_path = get_undo_log_path(UNDO_FILE)
         try:
             with open(log_path, "w", encoding="utf-8") as f:
                 json.dump({"timestamp": datetime.now().isoformat(), "moves": undo_file}, f, indent=2, ensure_ascii=False)
@@ -234,10 +235,9 @@ def organize(moves: list[tuple[Path, Path]], dry_run: bool = False, folder: Path
     if failed:
         _print_failed_summary(failed, logger=logger)
 
-
 def undo_moves(folder: Path, logger: Logger) -> None:
     """Undoes the last organization operations using the log file."""
-    log_path = folder / UNDO_FILE
+    log_path = get_undo_log_path(UNDO_FILE)
     if not log_path.exists():
         logger.warning(f"Could not find undo log: {log_path}")
         return

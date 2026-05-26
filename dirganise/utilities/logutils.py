@@ -1,4 +1,6 @@
 import logging, colorlog
+from pathlib import Path
+from platformdirs import user_cache_dir
 
 def config_logs() -> logging.Logger:
     handler = colorlog.StreamHandler()
@@ -21,3 +23,8 @@ def config_logs() -> logging.Logger:
     logger.setLevel(logging.DEBUG)
 
     return logger
+
+def get_undo_log_path(undo_file_name: str) -> Path:
+    log_dir = Path(user_cache_dir(appname="dirganise", appauthor="dxvampi"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / undo_file_name
