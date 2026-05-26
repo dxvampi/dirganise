@@ -361,7 +361,7 @@ def build_parser(__version__=None) -> argparse.ArgumentParser:
         dirganise . --rules my_rules.json  use custom rules
         """,
     )
-    parser.add_argument("folder", type=Path, nargs="?", default=Path("Code"), help="Folder to organize")
+    parser.add_argument("folder", type=Path, nargs="?", default=Path("."), help="Folder to organize")
     parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
