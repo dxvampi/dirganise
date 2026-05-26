@@ -306,13 +306,17 @@ def undo_moves(folder: Path, logger: Logger) -> None:
 
         logger.info(f"{src.name}  >  Parent folder")
         restored += 1
+
         # --- Delete folders ---
         folders_to_check = {Path(entry["from"]).parent for entry in moves}
         for folder_path in sorted(folders_to_check, key=lambda p: len(p.parts), reverse=True):
             try:
-                if folder_path.exists() and not any(folder_path.iterdir()):
-                    folder_path.rmdir()
-                    logger.info(f"Deleted empty folder: {folder_path.name}/")
+                if folder_path.parent == folder:
+                    if folder_path.exists() and not any(folder_path.iterdir()):
+                        folder_path.rmdir()
+                        logger.info(f"Deleted empty folder: {folder_path.name}/")
+                else:
+                    logger.debug(f"Skipped folder deletion (not a direct child of root): {folder_path}")
             except OSError as e:
                 logger.warning(f"Could not delete empty folder: {folder_path.name}/")
 
